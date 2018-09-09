@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Clean Route</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <link href="test.css" type="text/css" rel="stylesheet" />
+    
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        float: left;
+        height: 100%;
+        width: 65%;
+      }
+      #routes {
+        float: right;
+        height: 100%;
+        width: 35%;
+        overflow: auto;
+      }      
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script src="js/jquery-3.2.1.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="bootstrap.css"></script>
+  </head>
+  <body>
+        <span id="start">
+          <input id="autocomplete" placeholder="Start Location"
+                 type="text"></input>
+        </span>
+        <span id="end">
+          <input id="autocomplete1" placeholder="Destination"
+                 type="text"></input>
+        </span>
+        <b>Mode of Travel: </b>
+        <input id = "DRIVING" type="checkbox" name="driving" value="DRIVING"/>
+        <label for="DRIVING">Driving</label>
+        <input id = "WALKING" type="checkbox" name="walking" value="WALKING"/>
+        <label for="WALKING">Walking</label>   
+        <input id = "BICYCLING" type="checkbox" name="bicycling" value="BICYCLING"/>
+        <label for="BICYCLING">Bicycling</label>
+        <input id = "TRANSIT" type="checkbox" name="transit" value="TRANSIT"/>
+        <label for="TRANSIT">Transit</label>
+        <button id = "btn">Calculate</button>
+    </div>
+    <div id="routes"></div>
+    <div id="map"></div>
+    <script>        
+      var placeSearch, autocomplete;
+      function initAutocomplete() {
+
+      
+        var directionsService = new google.maps.DirectionsService;
+        
+        var map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 7,
+          center: {lat: 41.85, lng: -87.65}
+        });
+        
+        // Create the autocomplete object, restricting the search to geographical
+        // location types.
+        autocomplete = new google.maps.places.Autocomplete(
+            /** @type {!HTMLInputElement} */(document.getElementById('autocomplete')),
+            {types: ['geocode']});
+
+        // When the user selects an address from the dropdown, populate the address
+        // fields in the form.
+        autocomplete.addListener('place_changed', function(){
+            start1 = autocomplete.getPlace();
+        });
+
+        autocomplete1 = new google.maps.places.Autocomplete(
+            /** @type {!HTMLInputElement} */(document.getElementById('autocomplete1')),
+            {types: ['geocode']});
+
+        // When the user selects an address from the dropdown, populate the address
+        // fields in the form.
+        autocomplete1.addListener('place_changed', function(){
+            end1 = autocomplete1.getPlace();
+        });        
+        
+        var directionsDisplayArray = new Array(16);
+                    
+        document.getElementById('btn').addEventListener('click', function() {
+            document.getElementById('routes').innerHTML = "";
+            for (i = 0; i < directionsDisplayArray.length; i++) {
+                if (directionsDisplayArray[i]) {
+                    directionsDisplayArray[i].setMap(null);
+                }
+            }
+            directionsDisplayArray = [];
+        
+            if (document.getElementById('DRIVING').checked) {
+                calculateAndDisplayRoute(directionsService, directionsDisplayArray, start1, end1, map, 'DRIVING');
+            } 
+            if (document.getElementById('WALKING').checked) {
+                calculateAndDisplayRoute(directionsService, directionsDisplayArray, start1, end1, map, 'WALKING');
+            } 
+            if (document.getElementById('BICYCLING').checked) {
+                calculateAndDisplayRoute(directionsService, directionsDisplayArray, start1, end1, map, 'BICYCLING'); 
+            } 
+            if (document.getElementById('TRANSIT').checked) {
+                calculateAndDisplayRoute(directionsService, directionsDisplayArray, start1, end1, map, 'TRANSIT'); 
+            }
+        });
+      }        
+        
+      function calculateAndDisplayRoute(directionsService, directionsDisplayArray, start, end, map, mode) {
+        directionsService.route({
+          origin: start.formatted_address,
+          destination: end.formatted_address,
+          travelMode: mode,
+          provideRouteAlternatives: true
+        }, function(response, status) {
+          var element = document.getElementById("routes");
+          if (status === 'OK') {
+            for (i = 0; i < response.routes.length; i++) {
+                let directionsDisplay = new google.maps.DirectionsRenderer;
+                directionsDisplay.setMap(map);
+                newResponse = { ...response };               
+                newResponse.routes = [response.routes[i]];
+                console.log(newResponse.routes);
+                directionsDisplay.setDirections(newResponse);
+                directionsDisplayArray.push(directionsDisplay);
+                let btn = document.createElement("BUTTON");
+                let carb = calculateCarbonFootprint(newResponse.routes[0].legs[0], mode)
+                let str = "<div style='overflow: hidden;'><p style='float: left;'>" + newResponse.routes[0].summary + "</p><p style='float: right;'>" +newResponse.routes[0].legs[0].distance.text + "</p></div><div style='overflow: hidden;'><p style='float: left; font-size:16px;'><b>" + carb + "kg/unit" + "</b></p><p style='float: right;'>" + newResponse.routes[0].legs[0].duration.text;
+                if ((carb / newResponse.routes[0].legs[0].distance.value) > (0.3 * 0.000621371)) {
+                    btn.style.backgroundColor = 'red';
+                    btn.style.color = 'white';
+                } else if (carb / newResponse.routes[0].legs[0].distance.value > 0.13 * 0.000621371) {
+                    btn.style.backgroundColor = 'yellow';
+                } else {
+                    btn.style.backgroundColor = 'green';
+                    btn.style.color = 'white';
+                }
+                btn.innerHTML = str
+                btn.className += "accordion";
+                element.appendChild(btn);
+                let div = document.createElement("div");
+                directionsDisplay.setPanel(div);
+                div.className += "panel";
+                element.appendChild(div);
+                btn.addEventListener("click", function() {
+                    /* Toggle between adding and removing the "active" class,
+                    to highlight the button that controls the panel */
+                    this.classList.toggle("active");
+
+                    /* Toggle between hiding and showing the active panel */
+                    var panel = this.nextElementSibling;
+                    if (panel.style.maxHeight){
+                      panel.style.maxHeight = null;
+                    } else {
+                      panel.style.maxHeight = panel.scrollHeight + "px";
+                    } 
+                });
+            }
+          } else {
+            window.alert('Directions request failed due to ' + status);
+          }
+        });
+      }
+      
+      function calculateCarbonFootprint(leg, mode) {
+        let total = 0;
+        if (mode === "DRIVING") {
+            total = 0.355 * leg.distance.value * 0.000621371;
+        } else if (mode === "TRANSIT"){
+            for (i = 0; i < leg.steps.length; i++) {
+                if (leg.steps[i].travel_mode === "TRANSIT") {
+                    if (leg.steps[i].instructions.includes("Bus")) {
+                        total += (leg.steps[i].distance.value * 0.055 * 0.000621371);
+                    } else if (leg.steps[i].instructions.includes("Train")) {
+                        total += (leg.steps[i].distance.value * 0.136 * 0.000621371);
+                    } else if (leg.steps[i].instructions.includes("Subway")) {
+                        total += (leg.steps[i].distance.value * 0.120 * 0.000621371);
+                    }
+                }
+            }
+        }
+        return Number.parseFloat(total).toFixed(2);
+      }
+
+      
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC_CCFUR-Sp-H7n93ceB80U56XBzyhvSSs&libraries=places&callback=initAutocomplete"
+     async defer></script>
+  </body>
+</html>
